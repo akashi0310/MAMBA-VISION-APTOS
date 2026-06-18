@@ -104,6 +104,57 @@ python mambavision/train_aptos.py `
 
 ---
 
+## Pretrained weights — where they live & loading from any path
+
+When you pass `--pretrained`, the model factory looks for a checkpoint file:
+
+- **If the file exists**, it is loaded directly.
+- **If it's missing**, the official ImageNet weights are downloaded to that path
+  from NVIDIA's servers.
+
+By default the path is `/tmp/<model>.pth.tar` (e.g. `mamba_vision_T.pth.tar`).
+On Windows that resolves to `C:\tmp\<model>.pth.tar`. Note `C:\tmp` is **not
+created automatically** — if it doesn't exist the download fails, so create it
+first:
+
+```powershell
+New-Item -ItemType Directory -Force C:\tmp
+```
+
+### Use a checkpoint from any path
+
+Use `--model-path` to load weights from (or download them to) a location you
+choose. **`--model-path` only takes effect together with `--pretrained`.**
+
+Load a checkpoint you already downloaded:
+
+```powershell
+python mambavision/train_aptos.py `
+  --data-dir "<path>" --amp `
+  --pretrained --model-path "D:\weights\mamba_vision_T.pth.tar"
+```
+
+Download the official weights to a folder of your choice (used as a cache on the
+next run, so it only downloads once):
+
+```powershell
+New-Item -ItemType Directory -Force .\weights
+python mambavision/train_aptos.py `
+  --data-dir "<path>" --amp `
+  --model mamba_vision_T `
+  --pretrained --model-path ".\weights\mamba_vision_T.pth.tar"
+```
+
+> Make sure `--model-path` matches `--model`: a `mamba_vision_S` checkpoint will
+> not load into a `mamba_vision_T` model. Official weights for each variant can
+> also be downloaded by hand from the
+> [MambaVision Hugging Face collection](https://huggingface.co/collections/nvidia/mambavision-66943871a6b36c9e78b327d3).
+
+The 1000-class ImageNet head in the checkpoint is dropped automatically (it does
+not match your `--num-classes` head); the rest of the backbone is loaded.
+
+---
+
 ## 4. Output
 
 Per-epoch metrics are printed:

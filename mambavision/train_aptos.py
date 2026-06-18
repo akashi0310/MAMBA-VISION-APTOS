@@ -309,6 +309,12 @@ def main():
     # Model
     parser.add_argument("--model", default="mamba_vision_T")
     parser.add_argument("--pretrained", action="store_true", help="Load ImageNet pretrained backbone")
+    parser.add_argument(
+        "--model-path", default="",
+        help="Path to a pretrained .pth.tar checkpoint. If it exists it is loaded; "
+             "if missing (and --pretrained is set) the official weights are downloaded here. "
+             "Defaults to /tmp/<model>.pth.tar when omitted.",
+    )
     parser.add_argument("--num-classes", type=int, default=4)
     parser.add_argument("--img-size", type=int, default=224)
     parser.add_argument("--drop-path", type=float, default=0.2)
@@ -351,12 +357,16 @@ def main():
         num_workers=args.workers, pin_memory=True,
     )
 
-    model = create_model(
-        args.model,
+    create_kwargs = dict(
         pretrained=args.pretrained,
         num_classes=args.num_classes,
         drop_path_rate=args.drop_path,
-    ).to(device)
+    )
+    if args.model_path:
+        # Threads through to the model factory's `model_path` kwarg: an existing
+        # file is loaded, a missing one is downloaded to this path.
+        create_kwargs["model_path"] = args.model_path
+    model = create_model(args.model, **create_kwargs).to(device)
 
     criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
