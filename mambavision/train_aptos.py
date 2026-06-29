@@ -38,7 +38,24 @@ from torchvision.datasets import ImageFolder
 
 # Make sure we can import the package whether run from repo root or from inside
 # the mambavision/ directory.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+model_found = False
+if '__file__' in globals():
+    path_cand = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if os.path.exists(os.path.join(path_cand, "mambavision")):
+        sys.path.insert(0, path_cand)
+        model_found = True
+
+if not model_found and os.path.exists("mambavision"):
+    sys.path.insert(0, os.getcwd())
+    model_found = True
+
+if not model_found:
+    for root, dirs, files in os.walk(os.getcwd()):
+        if "mambavision" in dirs:
+            sys.path.insert(0, root)
+            model_found = True
+            break
+
 from mambavision import create_model  # noqa: E402
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -315,7 +332,7 @@ def main():
              "if missing (and --pretrained is set) the official weights are downloaded here. "
              "Defaults to /tmp/<model>.pth.tar when omitted.",
     )
-    parser.add_argument("--num-classes", type=int, default=4)
+    parser.add_argument("--num-classes", type=int, default=5, help="Number of output classes (APTOS has 5)")
     parser.add_argument("--img-size", type=int, default=224)
     parser.add_argument("--drop-path", type=float, default=0.2)
     # Optimization
@@ -328,7 +345,15 @@ def main():
     parser.add_argument("--label-smoothing", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", default="./output_aptos", help="Where to save checkpoints")
+    # Weights & Biases
+    parser.add_argument("--use-wandb", action="store_true", help="Enable Weights & Biases logging")
+    parser.add_argument("--wandb-project", default="mambavision-aptos", help="W&B project name")
+    parser.add_argument("--wandb-run-name", default="", help="W&B run name")
     args = parser.parse_args()
+
+    if args.use_wandb:
+        import wandb
+        wandb.init(project=args.wandb_project, name=args.wandb_run_name if args.wandb_run_name else None, config=args)
 
     torch.manual_seed(args.seed)
     os.makedirs(args.output, exist_ok=True)
@@ -350,11 +375,11 @@ def main():
 
     train_loader = DataLoader(
         train_ds, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.workers, pin_memory=True, drop_last=True,
+        num_workers=args.workers if os.name != 'nt' else 0, pin_memory=True, drop_last=True,
     )
     val_loader = DataLoader(
         val_ds, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True,
+        num_workers=args.workers if os.name != 'nt' else 0, pin_memory=True,
     )
 
     create_kwargs = dict(
@@ -391,6 +416,16 @@ def main():
             f"lr {optimizer.param_groups[0]['lr']:.2e} | {dt:.1f}s"
         )
 
+        if args.use_wandb:
+            wandb.log({
+                "epoch": epoch + 1,
+                "train_loss": tr_loss,
+                "train_acc": tr_acc,
+                "val_loss": va_loss,
+                "val_acc": va_acc,
+                "lr": optimizer.param_groups[0]['lr']
+            })
+
         if va_acc > best_acc:
             best_acc = va_acc
             ckpt = os.path.join(args.output, "best.pth")
@@ -401,6 +436,9 @@ def main():
             print(f"  -> saved new best ({best_acc:.4f}) to {ckpt}")
 
     print(f"Done. Best val accuracy: {best_acc:.4f}")
+    if args.use_wandb:
+        wandb.run.summary["best_val_acc"] = best_acc
+        wandb.finish()
 
 
 if __name__ == "__main__":

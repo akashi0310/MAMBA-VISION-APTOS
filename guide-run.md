@@ -88,6 +88,9 @@ exists, it carves 10% off training.
 | `--amp` | off | Mixed precision (recommended on GPU). |
 | `--workers` | `4` | DataLoader workers. |
 | `--output` | `./output_aptos` | Where `best.pth` is saved. |
+| `--use-wandb` | off | Enable Weights & Biases experiment tracking. |
+| `--wandb-project` | `mambavision-aptos` | Project name on W&B. |
+| `--wandb-run-name` | `""` | Optional name for the run. |
 
 ### Example: bigger model, 5 classes, 50 epochs
 
@@ -166,6 +169,27 @@ Epoch   1/30 | train loss 1.2031 acc 0.5512 | val loss 0.9842 acc 0.6701 | lr 5.
 
 The best validation checkpoint is saved to `./output_aptos/best.pth`, containing
 `state_dict`, `epoch`, `acc`, and the run `args`.
+
+---
+
+## 5. Run Test / Inference
+
+We have added a dedicated inference script `mambavision/test_aptos.py` to evaluate your trained MambaVision model on the test set and generate predictions.
+
+### Running Test Inference:
+
+```powershell
+python mambavision/test_aptos.py \
+    --checkpoint "./output_aptos/best.pth" \
+    --test-img-dir "<path to test_images>" \
+    --test-csv "<path to test.csv>" \
+    --output "./submission.csv" \
+    --amp
+```
+
+- It automatically parses metadata from your checkpoint (model name, image size, classes).
+- If the ground-truth labels are available in the test CSV, it prints the overall **Accuracy** metric.
+- It outputs prediction results in Kaggle format to `submission.csv`.
 
 ---
 
