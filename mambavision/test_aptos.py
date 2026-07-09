@@ -278,6 +278,8 @@ def main():
 
     # Run predictions
     predictions = []
+    true_labels = []
+    pred_labels = []
     correct = 0
     total = 0
 
@@ -295,16 +297,58 @@ def main():
             if has_labels:
                 targets_np = targets.numpy()
                 valid_mask = targets_np >= 0
+                for pred, target in zip(preds[valid_mask], targets_np[valid_mask]):
+                    true_labels.append(int(target))
+                    pred_labels.append(int(pred))
                 correct += (preds[valid_mask] == targets_np[valid_mask]).sum()
                 total += valid_mask.sum()
 
-    # Print accuracy if available
+    # Print accuracy and plot confusion matrix if labels are available
     if has_labels and total > 0:
+        import numpy as np
+        from sklearn.metrics import confusion_matrix, classification_report, cohen_kappa_score
+
+        acc = (correct / total) * 100
+        qwk = cohen_kappa_score(true_labels, pred_labels, weights='quadratic')
+        cm = confusion_matrix(true_labels, pred_labels)
+        
+        # Determine class names present or standard 5 classes for APTOS
+        class_names = [f"Class {i}" for i in range(num_classes)]
+        report = classification_report(true_labels, pred_labels, target_names=class_names, zero_division=0)
+
         print(f"\n=========================================")
-        print(f"Độ chính xác (Accuracy) trên tập test: {correct / total * 100:.2f}% ({correct}/{total})")
+        print(f"Độ chính xác (Accuracy) trên tập test: {acc:.2f}% ({correct}/{total})")
+        print(f"Quadratic Weighted Kappa (QWK): {qwk:.4f}")
         print(f"=========================================\n")
+
+        print("Classification Report:")
+        print(report)
+
+        print("Confusion Matrix:")
+        print(cm)
+
+        # Plot and save confusion matrix
+        try:
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+
+            plt.figure(figsize=(8, 6))
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                        xticklabels=class_names, yticklabels=class_names)
+            plt.title(f"Confusion Matrix (Accuracy: {acc:.2f}%, QWK: {qwk:.4f})")
+            plt.ylabel('True Label')
+            plt.xlabel('Predicted Label')
+
+            # Save to same directory as submission.csv
+            cm_path = os.path.join(os.path.dirname(args.output), "confusion_matrix.png")
+            plt.tight_layout()
+            plt.savefig(cm_path, dpi=300)
+            print(f"Confusion matrix image saved to: {cm_path}")
+            plt.close()
+        except Exception as e:
+            print(f"Could not plot confusion matrix image: {e}")
     else:
-        print("\nLưu ý: Không tìm thấy nhãn thực tế để đo Accuracy. Chỉ lưu kết quả dự đoán.\n")
+        print("\nLưu ý: Không tìm thấy nhãn thực tế để đo Accuracy/Confusion Matrix. Chỉ lưu kết quả dự đoán.\n")
 
     # Save output to submission.csv
     output_dir = os.path.dirname(args.output)
