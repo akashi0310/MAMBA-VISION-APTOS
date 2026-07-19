@@ -362,7 +362,27 @@ def main():
 
     train_tf, val_tf = build_transforms(args.img_size)
     train_ds, val_ds = build_datasets(args, train_tf, val_tf)
-    print(f"Train samples: {len(train_ds)} | Val samples: {len(val_ds)}")
+    
+    # Oversample minority classes (Class 3 & 4) to balance the training distribution
+    # and allow data augmentation to generate diverse variations of these classes.
+    if hasattr(train_ds, "samples"):
+        print("Oversampling minority classes (Class 3 & 4) in training set...")
+        oversampled_samples = []
+        for path, label in train_ds.samples:
+            oversampled_samples.append((path, label))
+            if label == 3:
+                # Class 3: 193 samples -> Multiply by 6 (add 5 copies) -> ~1158 samples
+                for _ in range(5):
+                    oversampled_samples.append((path, label))
+            elif label == 4:
+                # Class 4: 294 samples -> Multiply by 4 (add 3 copies) -> ~1176 samples
+                for _ in range(3):
+                    oversampled_samples.append((path, label))
+        train_ds.samples = oversampled_samples
+        if hasattr(train_ds, "imgs"):
+            train_ds.imgs = oversampled_samples
+
+    print(f"Train samples (after oversampling): {len(train_ds)} | Val samples: {len(val_ds)}")
 
     # Sanity-check the label range vs --num-classes.
     detected = getattr(train_ds, "num_classes", None)
