@@ -158,7 +158,14 @@ def main():
     # 2. Load Checkpoint & Model
     print(f"Loading checkpoint: {args.checkpoint}")
     checkpoint = torch.load(args.checkpoint, map_location="cpu")
-    ckpt_args = checkpoint.get("args", {})
+    
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        state_dict = checkpoint["state_dict"]
+        ckpt_args = checkpoint.get("args", {})
+    else:
+        state_dict = checkpoint
+        ckpt_args = {}
+
     if not isinstance(ckpt_args, dict):
         ckpt_args = vars(ckpt_args) if hasattr(ckpt_args, "__dict__") else {}
 
@@ -167,7 +174,7 @@ def main():
     img_size = int(ckpt_args.get("img_size", args.img_size))
 
     model = create_model(model_name, pretrained=False, num_classes=num_classes)
-    model.load_state_dict(checkpoint["state_dict"])
+    model.load_state_dict(state_dict)
     model = model.to(device)
     model.eval()
 
