@@ -90,7 +90,36 @@ def find_dataset_files(root):
     return train_csv, val_csv, test_csv, img_dir
 
 
-def load_samples_from_csv(csv_path, img_dir):
+def _resolve_image_path(img_id, primary_dir, root_dir=""):
+    search_dirs = []
+    if primary_dir:
+        search_dirs.append(primary_dir)
+        # Check nested subfolder (e.g. test_images/test_images)
+        search_dirs.append(os.path.join(primary_dir, os.path.basename(primary_dir)))
+
+    if root_dir and os.path.exists(root_dir):
+        for dirpath, dirnames, _ in os.walk(root_dir):
+            for d in dirnames:
+                full_d = os.path.join(dirpath, d)
+                if any(f.lower().endswith(IMG_EXTS) for f in os.listdir(full_d) if os.path.isfile(os.path.join(full_d, f))):
+                    if full_d not in search_dirs:
+                        search_dirs.append(full_d)
+
+    for d in search_dirs:
+        if not d or not os.path.exists(d):
+            continue
+        if os.path.splitext(img_id)[1].lower() in IMG_EXTS:
+            cand = os.path.join(d, img_id)
+            if os.path.isfile(cand):
+                return cand
+        for ext in IMG_EXTS:
+            cand = os.path.join(d, img_id + ext)
+            if os.path.isfile(cand):
+                return cand
+    return None
+
+
+def load_samples_from_csv(csv_path, img_dir, root_dir=""):
     samples = []
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.reader(f)
@@ -106,17 +135,7 @@ def load_samples_from_csv(csv_path, img_dir):
             img_id = row[id_idx].strip()
             label = int(float(row[label_idx].strip()))
 
-            resolved_path = None
-            if os.path.splitext(img_id)[1].lower() in IMG_EXTS:
-                cand = os.path.join(img_dir, img_id)
-                if os.path.isfile(cand):
-                    resolved_path = cand
-            else:
-                for ext in IMG_EXTS:
-                    cand = os.path.join(img_dir, img_id + ext)
-                    if os.path.isfile(cand):
-                        resolved_path = cand
-                        break
+            resolved_path = _resolve_image_path(img_id, img_dir, root_dir)
             if resolved_path:
                 samples.append((img_id, resolved_path, label))
 
@@ -140,10 +159,10 @@ def main():
     # 1. Resolve CSV and image directory
     csv_path = args.csv_path
     img_dir = args.img_dir
+    root = args.data_dir or "/kaggle/input/datasets/mariaherrerot/aptos2019"
     if not csv_path or not img_dir:
-        root = args.data_dir or "/kaggle/input/datasets/mariaherrerot/aptos2019"
         tr_csv, va_csv, te_csv, auto_img = find_dataset_files(root)
-        csv_path = csv_path or va_csv or te_csv or tr_csv
+        csv_path = csv_path or tr_csv or va_csv or te_csv
         img_dir = img_dir or auto_img
 
     print(f"Evaluating on CSV: {csv_path}")
@@ -152,7 +171,7 @@ def main():
     if not csv_path or not os.path.exists(csv_path):
         raise FileNotFoundError(f"Could not find CSV file at {csv_path}")
 
-    samples = load_samples_from_csv(csv_path, img_dir)
+    samples = load_samples_from_csv(csv_path, img_dir, root_dir=root)
     print(f"Loaded {len(samples)} evaluation samples.")
 
     # 2. Load Checkpoint & Model
